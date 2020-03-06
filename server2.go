@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	topic := "my13topic"
+	topic := "my13313topic"
 	partition := 0
 	selector := true
 	conn, _ := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition)
@@ -30,15 +30,7 @@ func main() {
 				log.Println("Event on server2 : selector->consume")
 				selector = false
 			} else {
-				log.Println("Time is over")
-				_, err := conn.WriteMessages(
-					kafka.Message{Value: []byte(fmt.Sprintf("server2:producer"))},
-				)
-				if err != nil {
-					log.Error(err)
-				}
-				log.Println("Event on server2 : selector->produce")
-				selector = true
+				log.Println("Time to read is over")
 			}
 
 		case <-tMes.C:
@@ -50,11 +42,28 @@ func main() {
 				if err != nil {
 					log.Error(err)
 				}
-			} else {
+			}
+			if !selector {
 				log.Println("read")
+				batch := conn.ReadBatch(1, 1e3) // fetch 10KB min, 1MB max
+				for {
+					b := make([]byte, 1e3) // 10KB max per message
+					amount, err := batch.Read(b)
+					if err != nil {
+						break
+					}
+					bb := b[:amount]
+					mes := string(bb)
+					log.Println(mes)
+					if mes == "server2:producer" {
+						log.Println("Event on server2 : selector->produce")
+						selector = true
+						break
+					}
+				}
+				batch.Close()
 			}
 		}
-	}
 
-	conn.Close()
+	}
 }
